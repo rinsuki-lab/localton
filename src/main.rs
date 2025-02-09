@@ -1,3 +1,5 @@
+use std::env;
+
 use axum::{
     routing::{get, post},
     Router,
@@ -37,7 +39,8 @@ async fn main() {
         .route("/v1/files/{ref}/meta", get(handlers::files::file_meta))
     ;
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    tracing::info!("listening on 3000 port");
+    let addr = env::var("BIND").unwrap_or_else(|_| "0.0.0.0:3000".to_string());
+    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+    tracing::info!("listening on {}", addr);
     axum::serve(listener, app).await.unwrap();
 }
