@@ -1,0 +1,168 @@
+openapi: "3.1.0"
+info:
+  title: localton
+  version: 0.0.0
+paths:
+  /v1/upload/limit:
+    get:
+      tags: [upload]
+      operationId: uploadGetLimitV1
+      summary: Get Upload Limit
+      responses:
+        200:
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  file_size_limit:
+                    type: integer
+                    example: 2147483648
+  /v1/upload/start:
+    post:
+      tags: [upload]
+      operationId: uploadStartV1
+      summary: Start Upload
+      parameters:
+      - name: file_size
+        in: query
+        required: true
+        schema:
+          type: integer
+      responses:
+        200:
+          description: Upload session is started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  chunk_size:
+                    type: integer
+                    example: 524288
+  /v1/upload/chunk:
+    post:
+      tags: [upload]
+      operationId: uploadChunkV1
+      summary: Upload Chunk
+      parameters:
+      - name: token
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: offset
+        in: query
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        204:
+          description: Chunk is Accepted
+  /v1/upload/finalize:
+    post:
+      tags: [upload]
+      operationId: uploadFinalizeV1
+      summary: Finalize Upload
+      parameters:
+      - name: token
+        in: query
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, md5]
+              properties:
+                name:
+                  type: string
+                  example: file.bin
+                md5:
+                  type: string
+                  description: THIS PROPERTY IS MIGHT NOT VERIFIED, DEPENDS ON FILE SIZE
+                  example: d41d8cd98f00b204e9800998ecf8427e
+      responses:
+        200:
+          description: Successfly uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ref:
+                    type: string
+  /v1/files/{ref}/chunks/{offset}:
+    get:
+      tags: [file]
+      operationId: fetchFileChunkV1
+      summary: Acquire File Chunk
+      parameters:
+      - name: ref
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: offset
+        in: path
+        required: true
+        description: should be divisible by 524288
+        schema:
+          type: integer
+      responses:
+        200:
+          description: "Contents of chunk"
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        404:
+          description: "Something is wrong, and you can't get file with this ref"
+        409:
+          description: "Chunk reference is need to refresh"
+          headers:
+            X-New-Ref:
+              description: Refreshed chunk ref, for updating your database or something
+              schema:
+                type: string
+        429:
+          description: "Upstream server hates your request rate"
+  /v1/files/{ref}/meta:
+    get:
+      tags: [file]
+      operationId: fetchFileMetaV1
+      parameters:
+      - name: ref
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        200:
+          description: Get Chunk Info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  file_size:
+                    type: number
+        409:
+          description: "Chunk reference is need to refresh"
+          headers:
+            X-New-Ref:
+              description: Refreshed chunk ref, for updating your database or something
+              schema:
+                type: string

@@ -1,0 +1,23 @@
+[package]
+name = "localton"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = "0.8.1"
+base64 = "0.22.1"
+chrono = "0.4.39"
+hex = "0.4.3"
+md-5 = { version = "0.10.6", features = ["asm"] }
+prost = "0.13.4"
+prost-build = "0.13.4"
+prost-types = "0.13.4"
+ring = "0.17.8"
+serde = { version = "1.0.217", features = ["derive"] }
+serde_json = "1.0.138"
+tokio = { version = "1.43.0", features = ["fs", "io-std", "io-util", "rt-multi-thread"] }
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["json", "env-filter"] }
+
+[build-dependencies]
+prost-build = "0.13.4"

@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+message FileRef {
+    oneof version {
+        FileRefV1 v1 = 1;
+    }
+}
+
+message FileRefV1 {
+    uint64 created_at = 1;
+    bytes random = 2;
+    uint64 size = 3;
+}
