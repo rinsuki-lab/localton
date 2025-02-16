@@ -1,0 +1,114 @@
+name: Build Docker Image
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    permissions:
+      id-token: write
+      attestations: write
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - image: ubuntu-24.04
+            arch: amd64
+          - image: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.image }}
+    steps:
+    - uses: docker/setup-buildx-action@v3
+    - uses: docker/login-action@v3
+      if: github.event_name != 'pull_request'
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    - name: Extract metadata for sub-image
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ghcr.io/${{ github.repository }}
+      env:
+        DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
+    - uses: docker/build-push-action@v6
+      id: push
+      with:
+        push: ${{ github.event_name != 'pull_request' }}
+        provenance: mode=max
+        sbom: true
+        labels: ${{ steps.meta.outputs.labels }}
+        annotations: ${{ steps.meta.outputs.annotations }}
+        outputs: type=image,name=ghcr.io/${{ github.repository }},push-by-digest=true,name-canonical=true
+    - name: Export digest
+      run: |
+        mkdir -p ${{ runner.temp }}/digests
+        digest="${{ steps.push.outputs.digest }}"
+        touch "${{ runner.temp }}/digests/${digest#sha256:}"
+    - name: Upload digest
+      uses: actions/upload-artifact@v4
+      with:
+        name: digests-${{ matrix.arch }}
+        path: ${{ runner.temp }}/digests/*
+        if-no-files-found: error
+        retention-days: 1
+    - uses: actions/attest-build-provenance@v2
+      with:
+        subject-name: ghcr.io/${{ github.repository }}
+        subject-digest: ${{ steps.push.outputs.digest }}
+        push-to-registry: ${{ github.event_name != 'pull_request' }}
+  merge:
+    runs-on: ubuntu-24.04
+    needs: build
+    if: github.event_name != 'pull_request'
+    permissions:
+      id-token: write
+      attestations: write
+      packages: write
+    steps:
+    - name: Download digests
+      uses: actions/download-artifact@v4
+      with:
+        path: ${{ runner.temp }}/digests
+        pattern: digests-*
+        merge-multiple: true
+    - uses: docker/metadata-action@v5
+      with:
+        images: ghcr.io/${{ github.repository }}
+        tags:
+          type=ref,event=branch
+      env:
+        DOCKER_METADATA_ANNOTATIONS_LEVELS: index
+    - uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    - name: Create manifest list and push
+      working-directory: ${{ runner.temp }}/digests
+      id: push
+      run: |
+        set -x
+        args=()
+
+        while IFS= read -r tag; do
+          args+=("-t" "$tag")
+        done < <(echo "$DOCKER_METADATA_OUTPUT_JSON" | jq -r '.tags[]')
+
+        while IFS= read -r annotation; do
+          args+=("--annotation" "$annotation")
+        done < <(echo "$DOCKER_METADATA_OUTPUT_JSON" | jq -r '.annotations[]')
+
+        for digest in *; do
+          args+=("ghcr.io/${{ github.repository }}@sha256:$digest")
+        done
+
+        docker buildx imagetools create "${args[@]}" 2>&1 | tee ${{ runner.temp }}/imagetools.create.log
+        echo "digest=$(sed -nE 's/.*pushing (sha256:[0-9a-f]{64}) to .*/\1/p' ${{ runner.temp }}/imagetools.create.log)" >> $GITHUB_OUTPUT
+    - uses: actions/attest-build-provenance@v2
+      with:
+        subject-name: ghcr.io/${{ github.repository }}
+        subject-digest: ${{ steps.push.outputs.digest }}
+        push-to-registry: true
