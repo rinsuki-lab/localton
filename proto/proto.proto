@@ -9,5 +9,5 @@ message FileRef {
 message FileRefV1 {
     uint64 created_at = 1;
     bytes random = 2;
-    uint64 size = 3;
+    optional uint64 size = 3;
 }

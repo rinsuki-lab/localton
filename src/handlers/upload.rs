@@ -20,7 +20,7 @@ pub async fn upload_get_limit() -> Response {
 
 #[derive(serde::Deserialize)]
 pub struct UploadStartQuery {
-    file_size: u64,
+    file_size: Option<u64>,
 }
 
 #[derive(serde::Serialize)]
@@ -66,7 +66,7 @@ pub async fn upload_start(Query(UploadStartQuery { file_size }): Query<UploadSta
 
     Json(UploadStartResponse {
         token: token.to_ref_string().to_string(),
-        chunk_size: 0,
+        chunk_size: 524288,
     }).into_response()
 }
 
@@ -95,9 +95,11 @@ pub async fn upload_chunk(Query(UploadChunkQuery { token, offset }): Query<Uploa
     };
 
     let max_size = offset + bytes.len() as u64;
-    if max_size > token.size {
-        tracing::warn!("Chunk size exceeds file size: {} > {} + {}", max_size, offset, token.size);
-        return StatusCode::BAD_REQUEST.into_response()
+    if let Some(size) = token.size {
+        if max_size > size {
+            tracing::warn!("Chunk size exceeds file size: {} > {} + {}", max_size, offset, size);
+            return StatusCode::BAD_REQUEST.into_response()
+        }
     }
     
     let file = File::options().write(true).open(&path).await;

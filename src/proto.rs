@@ -1,3 +1,5 @@
+use std::env;
+
 use base64::Engine;
 use chrono::{DateTime, Utc};
 use prost::Message;
@@ -28,15 +30,12 @@ impl FileRef {
                 let created_at = v1.created_at;
                 let created_at = std::time::UNIX_EPOCH + std::time::Duration::from_secs(created_at);
                 let created_at: DateTime<Utc> = created_at.into();
-                Some(format!("v1/{}_s{}_{}.{}", created_at.format("%Y/%m/%d_%H/%Y%m%d_%H%M%S"), v1.size, hex::encode(&v1.random), if tmp { "tmp" } else { "bin" }))
+                let sizestr = match v1.size {
+                    Some(v) => v.to_string(),
+                    None => "unknown".to_string(),
+                };
+                Some(format!("{}/v1/{}_s{}_{}.{}", env::var("DATA_DIR").unwrap_or("./data".to_string()), created_at.format("%Y/%m/%d_%H/%Y%m%d_%H%M%S"), sizestr, hex::encode(&v1.random), if tmp { "tmp" } else { "bin" }))
             },
-            None => None,
-        }
-    }
-
-    pub fn file_size(&self) -> Option<u64> {
-        match self.version {
-            Some(file_ref::Version::V1(ref v1)) => Some(v1.size),
             None => None,
         }
     }

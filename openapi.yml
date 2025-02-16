@@ -27,7 +27,7 @@ paths:
       parameters:
       - name: file_size
         in: query
-        required: true
+        required: false
         schema:
           type: integer
       responses:
