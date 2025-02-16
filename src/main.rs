@@ -42,5 +42,31 @@ async fn main() {
     let addr = env::var("BIND").unwrap_or_else(|_| "0.0.0.0:3000".to_string());
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     tracing::info!("listening on {}", addr);
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(listener, app).with_graceful_shutdown(shutdown_signal()).await.unwrap();
+}
+
+async fn shutdown_signal() {
+    use tokio::signal;
+
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
 }
